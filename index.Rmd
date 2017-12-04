@@ -1,0 +1,228 @@
+---
+title: 'Machine Learning Prediction: Random Forest for Human Activity Recognition
+  Data'
+author: "Priya Singh"
+date: "December 3, 2017"
+output: html_document
+---
+
+### **1. Introduction**  
+Machine learning is an application of Artificial Intelligence (AI) which provides our systems the ability to automatically learn and improve from experience without being explicitly programmed. 
+
+
+
+This report explores different machine learning models applied to the provided dataset, and finally selects most suited model based on the out-of-sample accuracy results.  The dataset used in this project is the Weight Lifting Exercise Dataset. The aim of this project is to build a prediction model on different ways of correctly and incorrectly performing barbell lifts, using several variables/features collected by accelerometers. More details about the dataset can be found [here]( http://groupware.les.inf.puc-rio.br/har) (See section of the Weight Lifting Exercise Dataset).  
+
+
+
+In order to select the most accurate prediction model, redundant features with high NA values were eliminated. The remaining dataset was divided into 2 parts: training set and validation set. The selected model was finally run on the test set provided in this project. Four different models were trained on the training set - Decision tree, random forest, boosting and bagging. In each model, out-of-sample accuracy is calculated using the validation set. Based on these out-of-sample accuracies, Random Forest Model seems to be the best machine learning model for our dataset, with an overall accuracy of 0.995. Finally, the selected Random Forest model is applied to the test set and achieves high accuracy.  
+
+====================================================================   
+
+### **2. Data Background**  
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. In this project, data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants was used. These 6 participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly *according to the specification* (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E). [More]( http://groupware.les.inf.puc-rio.br/har#ixzz3RDCCaU6P)  
+
+====================================================================
+
+
+
+### **3. Models Applied**  
+**Decision Trees**: Kind of Supervised Machine Learning (user explains what the input is and what the corresponding output is in the training data). Data is continuously split according to a certain feature. The trees are explained by two items - leaves  and decision nodes. The leaves are the decisions or the final outcomes. And the decision nodes are where the data is split.  
+
+
+**Random Forest**: Consists of many decision trees and outputs the class that is the mode of the classes output by individual trees. It grows multiple trees by using *only* a random subset of features.  
+
+
+
+**Boosting**: Converts weak predictor into a single strong learner. Boosting tries to fit every residual at each iteration of it's internal run. Finally, it adds up all the weaker predictor at each iteration to produce one single stronger learner.      
+
+
+
+**Bagging**: Also known as bootstrap aggregating. It uses multiple versions of a training set by using the bootstrap, i.e. sampling with replacement. Each of these data sets is used to train a different model. The outputs of the models are combined by averaging (in case of regression) or voting (in case of classification) to create a single output. Both Boosting and Bagging are meta-algorithms: approaches to combine several machine learning techniques into one predictive model in order to reduce the variance(Bagging) and bias(Boosting).  
+
+
+====================================================================  
+
+
+### **4. Feature Selection**   
+The dataset consists of a [training set]( https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv) and a [test set]( https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv). Data for this project comes from the original [source]( http://groupware.les.inf.puc-rio.br/har). The training set contains 19622 observations for 160 features. However, *only* 2% of these observations belong to the new_window feature "yes", for which the corresponding data from the sensors is being derived (average, variance, etc..). While 98% observations belong to the new_window "no" and the derived data is missing (about 98% observations of these derived data have NA values). Therefore, features corresponding to the new_window "yes" were removed from the training set. In addition, since we are trying to predict exercise quality (classe) based on different measurements, the timesamp data does not seem to be very significant. Similarly, the  obs feature also is not very relevant for our prediction models. We can therefore drop first 7 features as well (Read more [here]( https://www.coursera.org/learn/practical-machine-learning/discussions/all/threads/Db8UuojFEeaqqQqH4Vl8gQ/replies/ZZUBZ6V1EeeyMg7ZMA4efg/comments/UgXpM6X8EeeaaAq6Nz_GxA)).   
+
+
+We are now left with 19622 observations for 53 features only. The training set is further sliced into d.train (training set) corresponding to 70% of the training set and d.test (test set) corresponding to 30% of the test set. Finally, we have 3 datasets in total: d.train (training set) for model building, d.test (validation set) for cross checking out-of-sample accuracy, and an original test set for final model test.  
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}  
+# Load required libraries
+library(caret)
+library(plyr)
+library(dplyr)
+
+
+# Read data
+
+training <- read.csv("train.csv")
+testing <- read.csv("test.csv")
+
+set.seed(123)
+
+
+# Clean data - Remove Statistical data and first 7 columns
+stat.train <- training %>%
+  select(-contains("avg_"),
+         -contains("var_"),
+         -contains("stddev_"),
+         -contains("max_"),
+         -contains("min_"),
+         -contains("amplitude_"),
+         -contains("kurtosis_"),
+         -contains("skewness_")
+)
+
+sub.train <- stat.train[, -c(1:7)]
+dim(sub.train)
+# Split data into training and testing set
+set.seed(123)
+split.train <- createDataPartition(sub.train$classe,
+                                   p = 0.7, list = FALSE)
+
+d.train <- sub.train[split.train, ]
+d.test <- sub.train[-split.train, ]  
+
+dim(d.train)
+dim(d.test)
+
+```  
+
+====================================================================  
+
+
+### **5. Model building**  
+This section contains following model building and selecting the most suited one, based on out-of-sample accuracy: Decision Trees, Boosting, Bagging and Random Forest models.    
+
+#### **5.1 Decision Trees**  
+Regression tree with the method rpart was used, along with fancyRpartPlot, to produce more fancy plot.  
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+# Classification Tree
+library(caret)
+library(rattle)
+library(rpart.plot)
+library(rpart)
+
+## Regression Tree Model
+set.seed(123)
+
+# Fit Regression Tree Model 
+mod.rt <- train(classe ~ ., data = d.train, method = "rpart")
+fancyRpartPlot(mod.rt$finalModel)
+
+# Calculate Out-of-sample errors using validation dataset: POOR performance
+# Especially misclassifies Class D
+pred.rt <- predict(mod.rt, d.test)
+conf.rt <- confusionMatrix(table(pred.rt, d.test$classe))
+conf.rt$table  
+```  
+
+--------------------------------------------------------------------  
+
+
+#### **5.2 Boosting**  
+3-fold cross validation was used for building the Boosting Model.  
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+
+## Regression Tree Model
+set.seed(123)
+
+## Boosting Model
+# Fit Boosting Model
+mod.boost <- train(classe ~., data = d.train, method = "gbm",
+                   verbose = FALSE,
+                   trControl = trainControl(method = "cv", number = 3)
+                   )
+
+# Calculate Out-of-sample errors using validation dataset
+pred.boost <- predict(mod.boost, d.test)
+conf.boost <- confusionMatrix(table(pred.boost, d.test$classe))
+conf.boost  
+
+```  
+--------------------------------------------------------------------  
+
+
+#### **5.3 Bagging** 
+Bagging Model was built with default settings.  
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+## Regression Tree Model
+set.seed(123)
+
+## Bagging Model
+# Fit Bagging Model
+mod.bag <- train(classe ~ ., data = d.train, method = "treebag")
+
+# Calculate Out-of-sample errors using validation dataset
+pred.bag <- predict(mod.bag, d.test)
+conf.bag <- confusionMatrix(table(pred.bag, d.test$classe))
+conf.bag  
+```  
+--------------------------------------------------------------------  
+
+
+#### **5.4 Random Forest** 
+Random Forest is based on Bagging, in part. Moreover, Random Forest Model uses Bootstrapping and performs internal cross validation. However, these models were built seperately to evaluate various models discussed in thir report, and highlight effectiveness of the most suited model.      
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+## Regression Tree Model
+set.seed(123)
+
+# Random Forest Model
+# Fit Random Forest Model
+mod.ranfor <- train(classe ~ ., data = d.train, method = "rf",
+               importance = T,
+               trControl = trainControl(method = "cv", number = 3)
+               ) 
+# Calculate Out-of-sample errors using validation dataset
+pred.ranfor <- predict(mod.ranfor, d.test)
+conf.ranfor <- confusionMatrix(table(pred.ranfor, d.test$classe))
+conf.ranfor  
+
+```  
+
+
+We see some misclassifications in this model and the out-of-sample accuracy is 99%. However, there is a possibility that our model is overfitting the training data. Therefore, the model is finally predicted on the original test set provided in this project.  
+
+====================================================================  
+
+
+### **6. Prediction Model Selection**  
+Based on the summary below, Random Forest seems most suited model for the Human Activity Recognition dataset, in our case.  
+
+![Table](Prediction Model Selection.jpg "Table_Summary of Prediction Models")  
+
+====================================================================  
+
+
+### **7. Prediction using Random Forest**  
+The selected Random Forest model was used to predict the provided test data.  
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+set.seed(123)
+
+# Random Forest
+test.ranfor <- predict(mod.ranfor, testing)
+test.ranfor  
+
+
+```  
+
+====================================================================  
+
+
+### **8. Conclusion**  
+The aim of this project was to build most accurate model on different correct and incorrect ways of performing barbell lifts, using various features collected by accelerometers. Follwoing four  models were built and evaluated: Decision Trees, Boosting, Bagging and Random Forest. Based on out-of-sample accuracy, Random Forest was selected as final model for predicting the provided test data set.  
+
+
+#### **Credits**  
+Data used in this project was provided by: (http://groupware.les.inf.puc-rio.br/har)
+
+
+
+
